@@ -11,7 +11,7 @@ from WGAN_GP import WGAN_GP
 from DRAGAN import DRAGAN
 from LSGAN import LSGAN
 from BEGAN import BEGAN
-from Fisher_GAN import Fisher_GAN
+from Fisher_GAN import FisherGAN
 
 ## VAE Variants
 from VAE import VAE
@@ -29,7 +29,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description=desc)
 
     parser.add_argument('--gan_type', type=str, default='GAN',
-                        choices=['GAN', 'CGAN', 'infoGAN', 'ACGAN', 'EBGAN', 'BEGAN', 'WGAN', 'WGAN_GP', 'DRAGAN', 'LSGAN', 'Fisher_GAN', 'VAE', 'CVAE'],
+                        choices=['GAN', 'CGAN', 'infoGAN', 'ACGAN', 'EBGAN', 'BEGAN', 'WGAN', 'WGAN_GP', 'DRAGAN', 'LSGAN', 'FisherGAN', 'VAE', 'CVAE'],
                         help='The type of GAN', required=True)
     parser.add_argument('--dataset', type=str, default='mnist', choices=['mnist', 'fashion-mnist', 'CelebA'],
                         help='The name of dataset')
@@ -76,7 +76,7 @@ def main():
 
     # open session
     models = [GAN, CGAN, infoGAN, ACGAN, EBGAN, WGAN, WGAN_GP, DRAGAN,
-              LSGAN, BEGAN, Fisher_GAN, VAE, CVAE]
+              LSGAN, BEGAN, FisherGAN, VAE, CVAE]
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
         # declare instance for GAN
 
