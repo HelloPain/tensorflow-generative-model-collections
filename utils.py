@@ -1,5 +1,5 @@
 """
-Most codes from https://github.com/carpedm20/DCGAN-tensorflow
+Most codes from https://github.com/carpedm20/DCGAN-tensorflow and https://github.com/carpedm20/BEGAN-tensorflow
 """
 from __future__ import division
 import math
@@ -68,6 +68,11 @@ def get_image(image_path, input_height, input_width, resize_height=64, resize_wi
     image = imread(image_path, grayscale)
     return transform(image, input_height, input_width, resize_height, resize_width, crop)
 
+def get_celeba_image(image_path, input_height, input_width, resize_height=64, resize_width=64, crop=True, grayscale=False):
+    image = imread(image_path, grayscale)
+    image = image[50:128+50, 25:128+25, :]
+    return transform(image, input_height, input_width, resize_height, resize_width, crop)
+
 def save_images(images, size, image_path):
     return imsave(inverse_transform(images), size, image_path)
 
@@ -121,6 +126,27 @@ def transform(image, input_height, input_width, resize_height=64, resize_width=6
 
 def inverse_transform(images):
     return (images+1.)/2.
+
+def reshape(x, h, w, c):
+    x = tf.reshape(x, [-1, h, w, c])
+    return x
+
+def int_shape(tensor):
+    shape = tensor.get_shape().as_list()
+    return [num if num is not None else -1 for num in shape]
+
+def get_conv_shape(tensor):
+    shape = int_shape(tensor)
+    # always return [N, H, W, C]
+    return shape
+    
+def resize_nearest_neighbor(x, new_size):
+    x = tf.image.resize_nearest_neighbor(x, new_size)
+    return x
+
+def upscale(x, scale):
+    _, h, w, _ = get_conv_shape(x)
+    return resize_nearest_neighbor(x, (h*scale, w*scale))
 
 """ Drawing Tools """
 # borrowed from https://github.com/ykwon0407/variational_autoencoder/blob/master/variational_bayes.ipynb
