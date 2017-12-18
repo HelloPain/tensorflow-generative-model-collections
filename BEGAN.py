@@ -2,9 +2,11 @@
 from __future__ import division
 import os
 import time
+import scipy.misc as misc
 import tensorflow as tf
 import numpy as np
 
+from glob import glob
 from ops import *
 from utils import *
 
@@ -31,11 +33,11 @@ class BEGAN(object):
             self.c_dim = 1
 
             # BEGAN Parameter
-            self.gamma = 0.75
+            self.gamma = 0.5
             self.lamda = 0.001
 
             # train
-            self.learning_rate = 0.0002
+            self.learning_rate = 0.0001
             self.beta1 = 0.5
 
             # test
@@ -46,43 +48,106 @@ class BEGAN(object):
 
             # get number of batches for a single epoch
             self.num_batches = len(self.data_X) // self.batch_size
+        elif dataset_name == 'CelebA':
+            # parameters
+            self.reshape_input_height = 64
+            self.reshape_input_width = 64
+            self.output_height = 64
+            self.output_width = 64
+            self.lambd = 0.25
+            self.z_dim = z_dim  # dimension of noise-vector
+            self.c_dim = 3
+
+            #magic num
+            self.magic_num = 16
+            # BEGAN Parameter
+            self.gamma = 0.5
+            self.lamda = 0.001
+
+            # train
+            
+            self.learning_rate = tf.Variable(0.0001, name='lr')
+            self.lr_update = tf.assign(self.learning_rate, tf.maximum(self.learning_rate * 0.5, 0.00002), name='lr_update')
+            
+            # test
+            self.sample_num = 64  # number of generated images to be saved
+
+
+            self.data_X = glob(os.path.join("./data/CelebA/splits/train/*.jpg"))
+            h, w, _ = misc.imread(self.data_X[0]).shape
+            self.input_height = h
+            self.input_width = w
+            #self.data_y = np.concatenate([y_train, y_test])
+
+            # get number of batches for a single epoch
+            self.num_batches = len(self.data_X) // self.batch_size
         else:
             raise NotImplementedError
 
-    def discriminator(self, x, is_training=True, reuse=False):
-        # It must be Auto-Encoder style architecture
-        # Architecture : (64)4c2s-FC32_BR-FC64*14*14_BR-(1)4dc2s_S
-        with tf.variable_scope("discriminator", reuse=reuse):
+    def discriminator(self, x_, is_training=True, reuse=False):
+        with tf.variable_scope("discriminator", reuse=reuse) as vs:
+            # Encoder
+            hidden_num = 128
+            if self.dataset_name == 'CelebA':
+                repeat_num = 4
+            x = slim.conv2d(x_, hidden_num, 3, 1, activation_fn=tf.nn.elu)
+            prev_channel_num = hidden_num
+            
+            for idx in range(repeat_num):
+                channel_num = hidden_num * (idx + 1)
+                x = slim.conv2d(x, channel_num, 3, 1, activation_fn=tf.nn.elu)
+                if idx < repeat_num-1:
+                    channel_num2 = channel_num+hidden_num
+                else:
+                    channel_num2 = channel_num
+                x = slim.conv2d(x, channel_num2, 3, 1, activation_fn=tf.nn.elu)
+                if idx < repeat_num - 1:
+                    x = slim.conv2d(x, channel_num2, 3, 2, activation_fn=tf.nn.elu)
 
-            net = tf.nn.relu(conv2d(x, 64, 4, 4, 2, 2, name='d_conv1'))
-            net = tf.reshape(net, [self.batch_size, -1])
-            code = tf.nn.relu(bn(linear(net, 32, scope='d_fc6'), is_training=is_training, scope='d_bn6'))
-            net = tf.nn.relu(bn(linear(code, 64 * 14 * 14, scope='d_fc3'), is_training=is_training, scope='d_bn3'))
-            net = tf.reshape(net, [self.batch_size, 14, 14, 64])
-            out = tf.nn.sigmoid(deconv2d(net, [self.batch_size, 28, 28, 1], 4, 4, 2, 2, name='d_dc5'))
+            x = tf.reshape(x, [-1, np.prod([8, 8, channel_num])])
+            code = x = slim.fully_connected(x, self.z_dim, activation_fn=None)
 
-            # recon loss
-            recon_error = tf.sqrt(2 * tf.nn.l2_loss(out - x)) / self.batch_size
-            return out, recon_error, code
+            # Decoder
+            num_output = int(np.prod([8, 8, hidden_num]))
+            x = slim.fully_connected(x, num_output, activation_fn=None)
+            x = reshape(x, 8, 8, hidden_num)
+
+            for idx in range(repeat_num):
+                x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=tf.nn.elu)
+                x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=tf.nn.elu)
+                if idx < repeat_num - 1:
+                    x = slim.conv2d(x, hidden_num*2, 1, 1, activation_fn=tf.nn.elu)
+                    x = upscale(x, 2)
+                    
+            out = slim.conv2d(x, self.c_dim, 3, 1, activation_fn=None)
+            recon_error = tf.sqrt(2 * tf.nn.l2_loss(out - x_)) / self.batch_size
+
+            variables = tf.contrib.framework.get_variables(vs)
+            return out, recon_error, code, variables
 
     def generator(self, z, is_training=True, reuse=False):
-        # Network Architecture is exactly same as in infoGAN (https://arxiv.org/abs/1606.03657)
-        # Architecture : FC1024_BR-FC7x7x128_BR-(64)4dc2s_BR-(1)4dc2s_S
-        with tf.variable_scope("generator", reuse=reuse):
-            net = tf.nn.relu(bn(linear(z, 1024, scope='g_fc1'), is_training=is_training, scope='g_bn1'))
-            net = tf.nn.relu(bn(linear(net, 128 * 7 * 7, scope='g_fc2'), is_training=is_training, scope='g_bn2'))
-            net = tf.reshape(net, [self.batch_size, 7, 7, 128])
-            net = tf.nn.relu(
-                bn(deconv2d(net, [self.batch_size, 14, 14, 64], 4, 4, 2, 2, name='g_dc3'), is_training=is_training,
-                   scope='g_bn3'))
+        hidden_num = 128
+        if self.dataset_name == 'CelebA':
+            repeat_num = 4
+        with tf.variable_scope("generator", reuse=reuse) as vs:
+            num_output = int(np.prod([8, 8, hidden_num]))
+            x = slim.fully_connected(z, num_output, activation_fn=None)
+            x = tf.reshape(x, [-1, 8, 8, hidden_num])
 
-            out = tf.nn.sigmoid(deconv2d(net, [self.batch_size, 28, 28, 1], 4, 4, 2, 2, name='g_dc4'))
+            for idx in range(repeat_num):
+                x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=tf.nn.elu)
+                x = slim.conv2d(x, hidden_num, 3, 1, activation_fn=tf.nn.elu)
+                if idx < repeat_num - 1:
+                    x = slim.conv2d(x, hidden_num*2, 1, 1, activation_fn=tf.nn.elu)
+                    x = upscale(x, 2)
 
-            return out
+            out = slim.conv2d(x, 3, 3, 1, activation_fn=None)
+            variables = tf.contrib.framework.get_variables(vs)
+            return out, variables
 
     def build_model(self):
         # some parameters
-        image_dims = [self.input_height, self.input_width, self.c_dim]
+        image_dims = [self.reshape_input_height, self.reshape_input_width, self.c_dim]
         bs = self.batch_size
 
         """ BEGAN variable """
@@ -98,11 +163,11 @@ class BEGAN(object):
         """ Loss Function """
 
         # output of D for real images
-        D_real_img, D_real_err, D_real_code = self.discriminator(self.inputs, is_training=True, reuse=False)
+        D_real_img, D_real_err, D_real_code, self.d_vars = self.discriminator(self.inputs, is_training=True, reuse=False)
 
         # output of D for fake images
-        G = self.generator(self.z, is_training=True, reuse=False)
-        D_fake_img, D_fake_err, D_fake_code = self.discriminator(G, is_training=True, reuse=True)
+        G, self.g_vars = self.generator(self.z, is_training=True, reuse=False)
+        D_fake_img, D_fake_err, D_fake_code, _ = self.discriminator(G, is_training=True, reuse=True)
 
         # get loss for discriminator
         self.d_loss = D_real_err - self.k*D_fake_err
@@ -119,20 +184,20 @@ class BEGAN(object):
 
         """ Training """
         # divide trainable variables into a group for D and a group for G
-        t_vars = tf.trainable_variables()
-        d_vars = [var for var in t_vars if 'd_' in var.name]
-        g_vars = [var for var in t_vars if 'g_' in var.name]
+        # t_vars = tf.trainable_variables()
+        # d_vars = [var for var in t_vars if 'd_' in var.name]
+        # g_vars = [var for var in t_vars if 'g_' in var.name]
 
         # optimizers
         with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-            self.d_optim = tf.train.AdamOptimizer(self.learning_rate, beta1=self.beta1) \
-                      .minimize(self.d_loss, var_list=d_vars)
-            self.g_optim = tf.train.AdamOptimizer(self.learning_rate*5, beta1=self.beta1) \
-                      .minimize(self.g_loss, var_list=g_vars)
+            self.d_optim = tf.train.AdamOptimizer(self.learning_rate) \
+                      .minimize(self.d_loss, var_list=self.d_vars)
+            self.g_optim = tf.train.AdamOptimizer(self.learning_rate) \
+                      .minimize(self.g_loss, var_list=self.g_vars)
 
         """" Testing """
         # for test
-        self.fake_images = self.generator(self.z, is_training=False, reuse=True)
+        self.fake_images, _ = self.generator(self.z, is_training=False, reuse=True)
 
         """ Summary """
         d_loss_real_sum = tf.summary.scalar("d_error_real", D_real_err)
@@ -180,7 +245,19 @@ class BEGAN(object):
 
             # get batch data
             for idx in range(start_batch_id, self.num_batches):
-                batch_images = self.data_X[idx*self.batch_size:(idx+1)*self.batch_size]
+                if self.dataset_name == 'CelebA':
+                    batch_files = self.data_X[idx*self.batch_size:(idx+1)*self.batch_size]
+                    files = [get_celeba_image(batch_file,
+                                              input_height=self.input_height,
+                                              input_width=self.input_width,
+                                              resize_height=self.output_height,
+                                              resize_width=self.output_width,
+                                              crop=False,
+                                              grayscale=False) for batch_file in batch_files]
+                    batch_images = np.array(files).astype(np.float32)
+                    #print(batch_images.shape)
+                else:
+                    batch_images = self.data_X[idx*self.batch_size:(idx+1)*self.batch_size]
                 batch_z = np.random.uniform(-1, 1, [self.batch_size, self.z_dim]).astype(np.float32)
 
                 # update D network
