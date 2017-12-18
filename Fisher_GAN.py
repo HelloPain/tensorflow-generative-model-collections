@@ -9,8 +9,8 @@ import numpy as np
 from ops import *
 from utils import *
 
-class Fisher_GAN(object):
-    model_name = "Fisher_GAN"     # name for checkpoint
+class FisherGAN(object):
+    model_name = "FisherGAN"     # name for checkpoint
 
     def __init__(self, sess, epoch, batch_size, z_dim, dataset_name, checkpoint_dir, result_dir, log_dir):
         self.sess = sess
