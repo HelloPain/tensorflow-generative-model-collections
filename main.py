@@ -11,6 +11,7 @@ from WGAN_GP import WGAN_GP
 from DRAGAN import DRAGAN
 from LSGAN import LSGAN
 from BEGAN import BEGAN
+from Fisher_GAN import Fisher_GAN
 
 ## VAE Variants
 from VAE import VAE
@@ -28,13 +29,13 @@ def parse_args():
     parser = argparse.ArgumentParser(description=desc)
 
     parser.add_argument('--gan_type', type=str, default='GAN',
-                        choices=['GAN', 'CGAN', 'infoGAN', 'ACGAN', 'EBGAN', 'BEGAN', 'WGAN', 'WGAN_GP', 'DRAGAN', 'LSGAN', 'VAE', 'CVAE'],
+                        choices=['GAN', 'CGAN', 'infoGAN', 'ACGAN', 'EBGAN', 'BEGAN', 'WGAN', 'WGAN_GP', 'DRAGAN', 'LSGAN', 'Fisher_GAN', 'VAE', 'CVAE'],
                         help='The type of GAN', required=True)
-    parser.add_argument('--dataset', type=str, default='mnist', choices=['mnist', 'fashion-mnist', 'celebA'],
+    parser.add_argument('--dataset', type=str, default='mnist', choices=['mnist', 'fashion-mnist', 'CelebA'],
                         help='The name of dataset')
     parser.add_argument('--epoch', type=int, default=20, help='The number of epochs to run')
     parser.add_argument('--batch_size', type=int, default=64, help='The size of batch')
-    parser.add_argument('--z_dim', type=int, default=62, help='Dimension of noise vector')
+    parser.add_argument('--z_dim', type=int, default=64, help='Dimension of noise vector')
     parser.add_argument('--checkpoint_dir', type=str, default='checkpoint',
                         help='Directory name to save the checkpoints')
     parser.add_argument('--result_dir', type=str, default='results',
@@ -75,7 +76,7 @@ def main():
 
     # open session
     models = [GAN, CGAN, infoGAN, ACGAN, EBGAN, WGAN, WGAN_GP, DRAGAN,
-              LSGAN, BEGAN, VAE, CVAE]
+              LSGAN, BEGAN, Fisher_GAN, VAE, CVAE]
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
         # declare instance for GAN
 
