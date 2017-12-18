@@ -1,4 +1,5 @@
 #-*- coding: utf-8 -*-
+#ref: https://github.com/amirbar/rnn.wgan
 from __future__ import division
 import os
 import time
