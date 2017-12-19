@@ -22,33 +22,7 @@ class BEGAN(object):
         self.epoch = epoch
         self.batch_size = batch_size
 
-        if dataset_name == 'mnist' or dataset_name == 'fashion-mnist':
-            # parameters
-            self.input_height = 28
-            self.input_width = 28
-            self.output_height = 28
-            self.output_width = 28
-
-            self.z_dim = z_dim         # dimension of noise-vector
-            self.c_dim = 1
-
-            # BEGAN Parameter
-            self.gamma = 0.5
-            self.lamda = 0.001
-
-            # train
-            self.learning_rate = 0.0001
-            self.beta1 = 0.5
-
-            # test
-            self.sample_num = 64  # number of generated images to be saved
-
-            # load mnist
-            self.data_X, self.data_y = load_mnist(self.dataset_name)
-
-            # get number of batches for a single epoch
-            self.num_batches = len(self.data_X) // self.batch_size
-        elif dataset_name == 'CelebA':
+        if dataset_name == 'CelebA':
             # parameters
             self.reshape_input_height = 64
             self.reshape_input_width = 64
@@ -56,10 +30,8 @@ class BEGAN(object):
             self.output_width = 64
             self.lambd = 0.25
             self.z_dim = z_dim  # dimension of noise-vector
-            self.c_dim = 3
+            self.c_dim = 3 #rgb
 
-            #magic num
-            self.magic_num = 16
             # BEGAN Parameter
             self.gamma = 0.5
             self.lamda = 0.001
@@ -67,7 +39,7 @@ class BEGAN(object):
             # train
             
             self.learning_rate = tf.Variable(0.0001, name='lr')
-            self.lr_update = tf.assign(self.learning_rate, tf.maximum(self.learning_rate * 0.5, 0.00002), name='lr_update')
+            #self.lr_update = tf.assign(self.learning_rate, tf.maximum(self.learning_rate * 0.5, 0.00002), name='lr_update')
             
             # test
             self.sample_num = 64  # number of generated images to be saved
@@ -183,11 +155,6 @@ class BEGAN(object):
             tf.clip_by_value(self.k + self.lamda*(self.gamma*D_real_err - D_fake_err), 0, 1))
 
         """ Training """
-        # divide trainable variables into a group for D and a group for G
-        # t_vars = tf.trainable_variables()
-        # d_vars = [var for var in t_vars if 'd_' in var.name]
-        # g_vars = [var for var in t_vars if 'g_' in var.name]
-
         # optimizers
         with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
             self.d_optim = tf.train.AdamOptimizer(self.learning_rate) \
