@@ -155,11 +155,7 @@ class SN_FisherGAN(object):
         self.g_loss = -tf.reduce_mean(D_fake_logits)
 
         """ Training """
-        # divide trainable variables into a group for D and a group for G
-        # t_vars = tf.trainable_variables()
-        # d_vars = [var for var in t_vars if 'd_' in var.name]
-        # g_vars = [var for var in t_vars if 'g_' in var.name]
-
+        
         # optimizers
         with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
             self.d_optim = tf.train.AdamOptimizer(self.learning_rate, beta1=self.beta1) \
@@ -174,8 +170,6 @@ class SN_FisherGAN(object):
         self.fake_images, _ = self.generator(self.z, is_training=False, reuse=True)
 
         """ Summary """
-        #d_loss_real_sum = tf.summary.scalar("d_loss_real", d_loss_real)
-        #d_loss_fake_sum = tf.summary.scalar("d_loss_fake", d_loss_fake)
         d_loss_sum = tf.summary.scalar("d_loss", self.d_loss)
         g_loss_sum = tf.summary.scalar("g_loss", self.g_loss)
 
@@ -254,7 +248,7 @@ class SN_FisherGAN(object):
                     #print(samples.shape)
                     #print(manifold_h, manifold_w)
                     save_images(samples[:manifold_h * manifold_w, :, :, :], [manifold_h, manifold_w],
-                                './' + check_folder(self.result_dir + '/' + self.model_dir) + '/' + self.model_name + '_train_{:02d}_{:04d}.png'.format(
+                                check_folder(self.result_dir + '/' + self.model_dir) + '/' + self.model_name + '_train_{:02d}_{:04d}.png'.format(
                                     epoch, idx))
 
             # After an epoch, start_batch_id is set to zero
